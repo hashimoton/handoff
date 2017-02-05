@@ -1,0 +1,84 @@
+#! /usr/bin/env ruby
+# coding: utf-8
+# 
+# handoff
+#   Hands off given files to pre-defined application
+# Usage: colorz [options] FILE [FILE...]
+# Options:
+#   -f CONFIG_FILE
+#   -n
+
+require "optparse"
+
+class HandOff
+
+  DEFAULT_CONFIG_FILE = "handoff.tsv"
+
+  def opt_parse(argv)
+    opts = {}
+    
+    OptionParser.new do |opt|
+      begin
+        opt.version = '0.1.0'
+        opt.banner = "Hands off given files to pre-define application\n" + opt.banner
+        opt.banner += " FILE [DILE...]"
+        opt.separator("\nOptions:")
+        
+        opt.on('-f=CONFIG_FILE', '--config-file',
+          'uses specified config file') {|v| opts[:f] = v}
+        opt.on('-n', '--dry-run',
+          'shows application commands to be invoked') {|v| opts[:n] = v}
+
+        opt.parse!(argv)
+      rescue => e
+        $stderr.puts "ERROR: #{e}.\n#{opt}"
+        exit
+      end
+    end
+    
+    return opts
+  end
+  
+  def main(argv)
+    opts = opt_parse(argv)
+    script_dir = File.expand_path(File.dirname($0))
+    invokers = []
+    
+    config_file = script_dir + "/" + DEFAULT_CONFIG_FILE
+    File.open(config_file).each_line do |line|
+      line.chomp!
+      if line.include?("\t")
+        pattern, command = line.split("\t")
+        if command.include?("\\")
+          command = File.expand_path(command)
+        end
+        invokers.push({pattern: eval(pattern), command: command})
+      end
+    end
+    
+    argv.each do |file|
+      invokers.each do |invoker|
+        if file =~ invoker[:pattern]
+          exec_line = invoker[:command] + " " + File.expand_path(file)
+          if opts[:n]
+            puts exec_line
+          else
+            system(exec_line)
+          end
+        end
+      end
+    end
+    
+  end
+
+end
+
+
+####################################
+
+HandOff.new.main(ARGV)
+
+exit 0
+
+# EOF
+
